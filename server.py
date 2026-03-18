@@ -20,32 +20,33 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 flask_app = Flask(__name__)
 CORS(flask_app)
 
-tasks: dict[int, list] = {}
-task_counter: dict[int, int] = {}
+tasks: dict = {}
+task_counter: dict = {}
 
 def get_tasks(chat_id):
-    return tasks.setdefault(chat_id, [])
+    return tasks.setdefault(int(chat_id), [])
 
 def next_id(chat_id):
+    chat_id = int(chat_id)
     task_counter[chat_id] = task_counter.get(chat_id, 0) + 1
     return task_counter[chat_id]
+
+# ─── Flask API ────────────────────────────────────────────────────────────────
+
+@flask_app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"ok": True})
 
 @flask_app.route("/tasks/<int:chat_id>", methods=["GET"])
 def get_tasks_api(chat_id):
     return jsonify(get_tasks(chat_id))
 
-@flask_app.route("/tasks/<int:chat_id>", methods=["POST"])
-def add_task_api(chat_id):
-    data = request.json
-    t = {"id": next_id(chat_id), "task": data.get("task",""), "who": data.get("who","Я (сам)"), "priority": data.get("priority","обычно"), "deadline": data.get("deadline"), "source": data.get("source",""), "done": False, "created": datetime.now().strftime("%d.%m %H:%M")}
-    get_tasks(chat_id).insert(0, t)
-    return jsonify(t)
-
 @flask_app.route("/tasks/<int:chat_id>/<int:task_id>", methods=["PATCH"])
 def update_task_api(chat_id, task_id):
     data = request.json
     t = next((x for x in get_tasks(chat_id) if x["id"] == task_id), None)
-    if not t: return jsonify({"error": "not found"}), 404
+    if not t:
+        return jsonify({"error": "not found"}), 404
     t.update(data)
     return jsonify(t)
 
@@ -61,16 +62,26 @@ def analyze_api(chat_id):
         parsed = analyze_messages(text)
         added = []
         for item in parsed:
-            t = {"id": next_id(chat_id), "task": item.get("task",""), "who": item.get("who","Я (сам)"), "priority": item.get("priority","обычно"), "deadline": item.get("deadline"), "source": item.get("source",""), "done": False, "created": datetime.now().strftime("%d.%m %H:%M")}
+            t = make_task(chat_id, item)
             get_tasks(chat_id).insert(0, t)
             added.append(t)
         return jsonify(added)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@flask_app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"ok": True})
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def make_task(chat_id, item):
+    return {
+        "id": next_id(chat_id),
+        "task": item.get("task", ""),
+        "who": item.get("who", "Я (сам)"),
+        "priority": item.get("priority", "обычно"),
+        "deadline": item.get("deadline"),
+        "source": item.get("source", ""),
+        "done": False,
+        "created": datetime.now().strftime("%d.%m %H:%M"),
+    }
 
 def analyze_messages(text):
     system = f"""Ты помощник по управлению задачами. Команда: {", ".join(TEAM)}.
@@ -81,15 +92,22 @@ def analyze_messages(text):
         messages=[{"role": "system", "content": system}, {"role": "user", "content": text}],
         temperature=0.3,
     )
-    raw = response.choices[0].message.content.strip().replace("```json","").replace("```","").strip()
+    raw = response.choices[0].message.content.strip().replace("```json", "").replace("```", "").strip()
     return json.loads(raw)
 
-def main_keyboard():
-    return ReplyKeyboardMarkup([[KeyboardButton("📋 Открыть задачи", web_app=WebAppInfo(url=WEBAPP_URL))]], resize_keyboard=True)
+def main_keyboard(chat_id=None):
+    url = f"{WEBAPP_URL}?id={chat_id}" if chat_id else WEBAPP_URL
+    return ReplyKeyboardMarkup(
+        [[KeyboardButton("📋 Открыть задачи", web_app=WebAppInfo(url=url))]],
+        resize_keyboard=True
+    )
 
 def task_keyboard(t):
     toggle_label = "✅ Готово" if not t["done"] else "↩ Вернуть"
-    return InlineKeyboardMarkup([[InlineKeyboardButton(toggle_label, callback_data=f"toggle_{t['id']}"), InlineKeyboardButton("🗑 Удалить", callback_data=f"delete_{t['id']}")]])
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton(toggle_label, callback_data=f"toggle_{t['id']}"),
+        InlineKeyboardButton("🗑 Удалить", callback_data=f"delete_{t['id']}")
+    ]])
 
 PRIORITY_EMOJI = {"срочно": "🔴", "важно": "🟡", "обычно": "🟢"}
 
@@ -101,16 +119,24 @@ def format_task(t, show_id=True):
     src = f"\n  «{t['source']}»" if t.get("source") else ""
     return f"{done} {prefix}{pri} {t['task']} · {t['who']}{dl}{src}"
 
+# ─── Telegram handlers ────────────────────────────────────────────────────────
+
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Привет! Пришли рабочие сообщения — найду задачи и назначу исполнителя.\n\nИли открой интерфейс кнопкой внизу 👇\n\n/tasks — активные задачи\n/done — выполненные\n/clear — удалить все", reply_markup=main_keyboard())
+    chat_id = update.effective_chat.id
+    await update.message.reply_text(
+        "👋 Привет! Пришли рабочие сообщения — найду задачи и назначу исполнителя.\n\n"
+        "Или открой интерфейс кнопкой внизу 👇\n\n"
+        "/tasks — активные задачи\n/done — выполненные\n/clear — удалить все",
+        reply_markup=main_keyboard(chat_id)
+    )
 
 async def cmd_tasks(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     active = [t for t in get_tasks(chat_id) if not t["done"]]
     if not active:
-        await update.message.reply_text("📭 Активных задач нет.", reply_markup=main_keyboard())
+        await update.message.reply_text("📭 Активных задач нет.", reply_markup=main_keyboard(chat_id))
         return
-    await update.message.reply_text(f"📋 Активные задачи: {len(active)}", reply_markup=main_keyboard())
+    await update.message.reply_text(f"📋 Активных задач: {len(active)}", reply_markup=main_keyboard(chat_id))
     for t in active:
         await update.message.reply_text(format_task(t), reply_markup=task_keyboard(t))
 
@@ -120,7 +146,8 @@ async def cmd_done(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not done:
         await update.message.reply_text("Выполненных задач пока нет.")
         return
-    await update.message.reply_text("✅ Выполнено ({}):\n\n{}".format(len(done), "\n".join(format_task(t, show_id=False) for t in done)))
+    lines = "\n".join(format_task(t, show_id=False) for t in done)
+    await update.message.reply_text(f"✅ Выполнено ({len(done)}):\n\n{lines}")
 
 async def cmd_clear(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     tasks[update.effective_chat.id] = []
@@ -140,7 +167,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     await thinking.edit_text(f"✨ Нашёл задач: {len(parsed)}")
     for item in parsed:
-        t = {"id": next_id(chat_id), "task": item.get("task",""), "who": item.get("who","Я (сам)"), "priority": item.get("priority","обычно"), "deadline": item.get("deadline"), "source": item.get("source",""), "done": False, "created": datetime.now().strftime("%d.%m %H:%M")}
+        t = make_task(chat_id, item)
         get_tasks(chat_id).append(t)
         await update.message.reply_text(format_task(t), reply_markup=task_keyboard(t))
 
@@ -161,6 +188,8 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         tasks[chat_id] = [x for x in get_tasks(chat_id) if x["id"] != task_id]
         await query.edit_message_text(f"🗑 Задача #{task_id} удалена.")
 
+# ─── Run bot + Flask together ─────────────────────────────────────────────────
+
 async def run_bot():
     tg_app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     tg_app.add_handler(CommandHandler("start", cmd_start))
@@ -169,19 +198,21 @@ async def run_bot():
     tg_app.add_handler(CommandHandler("clear", cmd_clear))
     tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     tg_app.add_handler(CallbackQueryHandler(handle_callback))
-    print("✅ Бот запущен.")
     await tg_app.initialize()
     await tg_app.start()
     await tg_app.updater.start_polling()
+    print("✅ Бот запущен.")
     await asyncio.Event().wait()
 
-async def main():
-    bot_task = asyncio.create_task(run_bot())
+async def run_flask():
     port = int(os.environ.get("PORT", 5000))
     from werkzeug.serving import make_server
     server = make_server("0.0.0.0", port, flask_app)
-    server_task = asyncio.get_event_loop().run_in_executor(None, server.serve_forever)
-    await asyncio.gather(bot_task, server_task)
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, server.serve_forever)
+
+async def main():
+    await asyncio.gather(run_bot(), run_flask())
 
 if __name__ == "__main__":
     asyncio.run(main())
