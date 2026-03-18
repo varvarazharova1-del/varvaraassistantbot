@@ -138,7 +138,7 @@ const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
 const TEAM = ["Полина", "Аня", "Я (сам)"];
-const SERVER_URL = "ВАШ_SERVER_URL"; // заменим после деплоя
+const SERVER_URL = "https://web-production-0fb27.up.railway.app";
 let chatId = tg?.initDataUnsafe?.user?.id || 0;
 let tasks = [];
 let currentFilter = 'all';
