@@ -1,1 +1,1 @@
-web: python server.py
+web: gunicorn --worker-class gthread --workers 1 --threads 4 --bind 0.0.0.0:$PORT server:app & python -c "import server; import threading; t = threading.Thread(target=server.run_bot); t.daemon=True; t.start(); import time; time.sleep(999999)"
