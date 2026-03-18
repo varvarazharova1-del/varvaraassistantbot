@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Задачи</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700&family=Golos+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f13;
+    --surface: #1a1a22;
+    --surface2: #22222e;
+    --accent: #c8f04a;
+    --accent2: #7c6af7;
+    --text: #f0f0f0;
+    --muted: #888899;
+    --border: rgba(255,255,255,0.08);
+    --red: #ff5c5c;
+    --yellow: #ffc94d;
+    --green: #c8f04a;
+    --radius: 16px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Golos Text', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 80px;
+    overflow-x: hidden;
+  }
+
+  /* Header */
+  .header {
+    padding: 20px 16px 0;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .logo {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+
+  .stats-pill {
+    display: flex;
+    gap: 8px;
+  }
+
+  .pill {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--surface2);
+    color: var(--muted);
+  }
+
+  .pill.active { background: var(--accent); color: #0f0f13; }
+
+  /* Stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .stat-num {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Filters */
+  .filters {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 12px;
+    scrollbar-width: none;
+  }
+  .filters::-webkit-scrollbar { display: none; }
+
+  .filter-btn {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Golos Text', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .filter-btn.active {
+    background: var(--accent);
+    color: #0f0f13;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* Section title */
+  .section-title {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 0 16px;
+    margin: 8px 0 10px;
+  }
+
+  /* Task cards */
+  .tasks-list { padding: 0 16px; }
+
+  .task-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .task-card.done { opacity: 0.5; }
+  .task-card.done .task-text { text-decoration: line-through; color: var(--muted); }
+
+  .task-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .check-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    color: transparent;
+    font-size: 12px;
+  }
+
+  .task-card.done .check-btn {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0f0f13;
+  }
+
+  .task-text {
+    font-size: 14px;
+    line-height: 1.5;
+    flex: 1;
+    font-weight: 500;
+  }
+
+  .del-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 2px;
+    flex-shrink: 0;
+    transition: color 0.2s;
+  }
+  .del-btn:hover { color: var(--red); }
+
+  .task-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+  }
+
+  .badge-who { background: rgba(124,106,247,0.2); color: #a99ef5; }
+  .badge-urgent { background: rgba(255,92,92,0.15); color: var(--red); }
+  .badge-important { background: rgba(255,201,77,0.15); color: var(--yellow); }
+  .badge-normal { background: rgba(200,240,74,0.12); color: var(--green); }
+  .badge-deadline { background: var(--surface2); color: var(--muted); }
+
+  .source-text {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    font-style: italic;
+  }
+
+  /* Deadline alerts */
+  .alerts-section {
+    padding: 0 16px;
+    margin-bottom: 8px;
+  }
+
+  .alert-card {
+    background: rgba(255,92,92,0.1);
+    border: 1px solid rgba(255,92,92,0.3);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .alert-icon { font-size: 18px; }
+  .alert-text { font-size: 13px; line-height: 1.4; }
+  .alert-text strong { color: var(--red); }
+
+  /* Team stats */
+  .team-section { padding: 0 16px; }
+
+  .member-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .member-row:last-child { border-bottom: none; }
+
+  .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Unbounded', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .member-info { flex: 1; }
+  .member-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .member-count { font-size: 12px; color: var(--muted); }
+
+  .member-bar-wrap {
+    width: 80px;
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .member-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+
+  /* Bottom nav */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    padding: 8px 0 20px;
+    z-index: 20;
+  }
+
+  .nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: 'Golos Text', sans-serif;
+    font-size: 10px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 6px 0;
+    transition: color 0.2s;
+  }
+
+  .nav-btn.active { color: var(--accent); }
+  .nav-icon { font-size: 20px; }
+
+  /* Empty state */
+  .empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+  }
+
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-text { font-size: 14px; line-height: 1.6; }
+
+  /* Tab content */
+  .tab { display: none; }
+  .tab.active { display: block; }
+
+  /* Add task form */
+  .add-form {
+    padding: 0 16px;
+    margin-bottom: 16px;
+  }
+
+  .add-form textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'Golos Text', sans-serif;
+    font-size: 14px;
+    padding: 14px;
+    resize: none;
+    min-height: 80px;
+    outline: none;
+  }
+
+  .add-form textarea:focus { border-color: var(--accent); }
+
+  .add-btn {
+    width: 100%;
+    margin-top: 8px;
+    padding: 14px;
+    background: var(--accent);
+    color: #0f0f13;
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'Unbounded', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .add-btn:disabled { opacity: 0.5; }
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(0,0,0,0.3); border-top-color: #0f0f13; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .priority-select {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .prio-btn {
+    flex: 1;
+    padding: 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Golos Text', sans-serif;
+  }
+
+  .prio-btn[data-p="срочно"].sel { background: rgba(255,92,92,0.15); color: var(--red); border-color: var(--red); }
+  .prio-btn[data-p="важно"].sel { background: rgba(255,201,77,0.15); color: var(--yellow); border-color: var(--yellow); }
+  .prio-btn[data-p="обычно"].sel { background: rgba(200,240,74,0.12); color: var(--green); border-color: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="logo">ЗАДАЧИ</div>
+    <div class="stats-pill">
+      <span class="pill active" id="activeCount">0 активных</span>
+    </div>
+  </div>
+
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-card">
+      <div class="stat-num" id="statTotal" style="color: var(--accent)">0</div>
+      <div class="stat-label">Всего</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="statDone" style="color: var(--accent2)">0</div>
+      <div class="stat-label">Готово</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="statUrgent" style="color: var(--red)">0</div>
+      <div class="stat-label">Срочных</div>
+    </div>
+  </div>
+
+  <div class="filters" id="filters">
+    <button class="filter-btn active" data-f="all">Все</button>
+    <button class="filter-btn" data-f="me">Мне</button>
+    <button class="filter-btn" data-f="team">Команде</button>
+    <button class="filter-btn" data-f="urgent">Срочные</button>
+    <button class="filter-btn" data-f="done">Готово</button>
+  </div>
+</div>
+
+<!-- TASKS TAB -->
+<div id="tabTasks" class="tab active">
+  <div id="alertsSection" class="alerts-section"></div>
+  <div class="section-title" id="tasksLabel">Задачи</div>
+  <div class="tasks-list" id="tasksList"></div>
+</div>
+
+<!-- ADD TAB -->
+<div id="tabAdd" class="tab">
+  <div style="padding: 16px 16px 8px;">
+    <div class="section-title" style="padding: 0; margin-bottom: 12px;">Новая задача</div>
+    <div class="add-form" style="padding: 0;">
+      <textarea id="addText" placeholder="Опиши задачу или вставь сообщения из чата — ИИ разберёт сам..."></textarea>
+      <div class="priority-select" id="prioSelect">
+        <button class="prio-btn sel" data-p="обычно">🟢 Обычно</button>
+        <button class="prio-btn" data-p="важно">🟡 Важно</button>
+        <button class="prio-btn" data-p="срочно">🔴 Срочно</button>
+      </div>
+      <button class="add-btn" id="addBtn" onclick="addTask()">
+        <span id="addBtnText">Разобрать и добавить</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- TEAM TAB -->
+<div id="tabTeam" class="tab">
+  <div class="section-title">Команда</div>
+  <div class="team-section" id="teamSection"></div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <button class="nav-btn active" id="navTasks" onclick="switchTab('Tasks')">
+    <span class="nav-icon">📋</span>Задачи
+  </button>
+  <button class="nav-btn" id="navAdd" onclick="switchTab('Add')">
+    <span class="nav-icon">➕</span>Добавить
+  </button>
+  <button class="nav-btn" id="navTeam" onclick="switchTab('Team')">
+    <span class="nav-icon">👥</span>Команда
+  </button>
+</div>
+
+<script>
+// Telegram WebApp init
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+// ── State ──────────────────────────────────────────────────────────────────
+const TEAM = ["Алексей", "Мария", "Денис", "Я (сам)"];
+let tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+let nextId = parseInt(localStorage.getItem('nextId') || '1');
+let currentFilter = 'all';
+let selectedPrio = 'обычно';
+
+function save() {
+  localStorage.setItem('tasks', JSON.stringify(tasks));
+  localStorage.setItem('nextId', nextId);
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  ['Tasks','Add','Team'].forEach(t => {
+    document.getElementById('tab'+t).classList.toggle('active', t === name);
+    document.getElementById('nav'+t).classList.toggle('active', t === name);
+  });
+  if (name === 'Team') renderTeam();
+}
+
+// ── Filters ────────────────────────────────────────────────────────────────
+document.getElementById('filters').addEventListener('click', e => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentFilter = btn.dataset.f;
+  renderTasks();
+});
+
+// ── Priority select ────────────────────────────────────────────────────────
+document.getElementById('prioSelect').addEventListener('click', e => {
+  const btn = e.target.closest('.prio-btn');
+  if (!btn) return;
+  document.querySelectorAll('.prio-btn').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  selectedPrio = btn.dataset.p;
+});
+
+// ── Render stats ───────────────────────────────────────────────────────────
+function renderStats() {
+  const active = tasks.filter(t => !t.done);
+  document.getElementById('statTotal').textContent = tasks.length;
+  document.getElementById('statDone').textContent = tasks.filter(t => t.done).length;
+  document.getElementById('statUrgent').textContent = tasks.filter(t => t.priority === 'срочно' && !t.done).length;
+  document.getElementById('activeCount').textContent = active.length + ' активных';
+}
+
+// ── Render alerts ──────────────────────────────────────────────────────────
+function renderAlerts() {
+  const el = document.getElementById('alertsSection');
+  const urgent = tasks.filter(t => !t.done && t.priority === 'срочно');
+  if (!urgent.length) { el.innerHTML = ''; return; }
+  el.innerHTML = urgent.map(t => `
+    <div class="alert-card">
+      <div class="alert-icon">🔴</div>
+      <div class="alert-text"><strong>Срочно!</strong> ${t.task} — ${t.who}</div>
+    </div>
+  `).join('');
+}
+
+// ── Render tasks ───────────────────────────────────────────────────────────
+function getFiltered() {
+  switch(currentFilter) {
+    case 'me': return tasks.filter(t => t.who === 'Я (сам)');
+    case 'team': return tasks.filter(t => t.who !== 'Я (сам)');
+    case 'urgent': return tasks.filter(t => t.priority === 'срочно' && !t.done);
+    case 'done': return tasks.filter(t => t.done);
+    default: return tasks;
+  }
+}
+
+function badgePrio(p) {
+  if (p === 'срочно') return `<span class="badge badge-urgent">🔴 срочно</span>`;
+  if (p === 'важно') return `<span class="badge badge-important">🟡 важно</span>`;
+  return `<span class="badge badge-normal">🟢 обычно</span>`;
+}
+
+function renderTasks() {
+  renderStats();
+  renderAlerts();
+  const list = document.getElementById('tasksList');
+  const filtered = getFiltered();
+  document.getElementById('tasksLabel').textContent =
+    `${filtered.length} задач${filtered.length === 1 ? 'а' : filtered.length < 5 ? 'и' : ''}`;
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty"><div class="empty-icon">📭</div><div class="empty-text">Задач нет.<br>Добавь через вкладку ➕</div></div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(t => `
+    <div class="task-card ${t.done ? 'done' : ''}" id="tc${t.id}">
+      <div class="task-top">
+        <button class="check-btn" onclick="toggleTask(${t.id})">${t.done ? '✓' : ''}</button>
+        <div class="task-text">${t.task}</div>
+        <button class="del-btn" onclick="deleteTask(${t.id})">✕</button>
+      </div>
+      <div class="task-meta">
+        <span class="badge badge-who">👤 ${t.who}</span>
+        ${badgePrio(t.priority)}
+        ${t.deadline ? `<span class="badge badge-deadline">📅 ${t.deadline}</span>` : ''}
+      </div>
+      ${t.source ? `<div class="source-text">«${t.source}»</div>` : ''}
+    </div>
+  `).join('');
+}
+
+// ── Toggle / Delete ────────────────────────────────────────────────────────
+function toggleTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (t) { t.done = !t.done; save(); renderTasks(); }
+}
+
+function deleteTask(id) {
+  tasks = tasks.filter(x => x.id !== id);
+  save(); renderTasks();
+}
+
+// ── Add task via AI ────────────────────────────────────────────────────────
+async function addTask() {
+  const text = document.getElementById('addText').value.trim();
+  if (!text) return;
+
+  const btn = document.getElementById('addBtn');
+  const btnText = document.getElementById('addBtnText');
+  btn.disabled = true;
+  btnText.innerHTML = '<div class="spinner"></div> Анализирую...';
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 800,
+        system: `Ты помощник по управлению задачами. Команда: ${TEAM.join(', ')}.
+Извлеки задачи из текста. Верни ТОЛЬКО JSON массив без markdown:
+[{"task":"...","who":"...","priority":"срочно|важно|обычно","deadline":"...или null","source":"..."}]`,
+        messages: [{ role: 'user', content: text }]
+      })
+    });
+    const data = await resp.json();
+    const raw = data.content.map(b => b.text || '').join('').replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(raw);
+
+    parsed.forEach(item => {
+      tasks.unshift({
+        id: nextId++,
+        task: item.task || text,
+        who: item.who || 'Я (сам)',
+        priority: item.priority || selectedPrio,
+        deadline: item.deadline || null,
+        source: item.source || '',
+        done: false,
+      });
+    });
+
+    save();
+    document.getElementById('addText').value = '';
+    switchTab('Tasks');
+    renderTasks();
+    if (tg) tg.HapticFeedback?.notificationOccurred('success');
+  } catch(e) {
+    alert('Ошибка: ' + e.message);
+  }
+
+  btn.disabled = false;
+  btnText.textContent = 'Разобрать и добавить';
+}
+
+// ── Render team ────────────────────────────────────────────────────────────
+function renderTeam() {
+  const section = document.getElementById('teamSection');
+  const maxTasks = Math.max(1, ...TEAM.map(m => tasks.filter(t => t.who === m && !t.done).length));
+
+  section.innerHTML = TEAM.map(m => {
+    const active = tasks.filter(t => t.who === m && !t.done).length;
+    const done = tasks.filter(t => t.who === m && t.done).length;
+    const initials = m === 'Я (сам)' ? 'Я' : m.slice(0,2).toUpperCase();
+    const pct = Math.round((active / maxTasks) * 100);
+    return `
+      <div class="member-row">
+        <div class="avatar">${initials}</div>
+        <div class="member-info">
+          <div class="member-name">${m}</div>
+          <div class="member-count">${active} активных · ${done} выполнено</div>
+        </div>
+        <div class="member-bar-wrap">
+          <div class="member-bar" style="width:${pct}%"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+renderTasks();
+</script>
+</body>
+</html>
