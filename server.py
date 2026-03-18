@@ -215,6 +215,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"🗑 Задача #{task_id} удалена.")
 
 def run_bot():
+    import asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     tg_app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     tg_app.add_handler(CommandHandler("start", cmd_start))
     tg_app.add_handler(CommandHandler("tasks", cmd_tasks))
@@ -225,7 +228,6 @@ def run_bot():
     print("✅ Бот запущен.")
     tg_app.run_polling()
 
-# ─── Запуск ───────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     bot_thread = threading.Thread(target=run_bot, daemon=True)
     bot_thread.start()
