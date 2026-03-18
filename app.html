@@ -515,7 +515,7 @@ const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
 // ── State ──────────────────────────────────────────────────────────────────
-const TEAM = ["Полина", "Аня", "Я (сам)"];
+const TEAM = ["Алексей", "Мария", "Денис", "Я (сам)"];
 let tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
 let nextId = parseInt(localStorage.getItem('nextId') || '1');
 let currentFilter = 'all';
@@ -645,20 +645,21 @@ async function addTask() {
   btnText.innerHTML = '<div class="spinner"></div> Анализирую...';
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const GROQ_KEY = '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';
+    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_KEY}` },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 800,
-        system: `Ты помощник по управлению задачами. Команда: ${TEAM.join(', ')}.
-Извлеки задачи из текста. Верни ТОЛЬКО JSON массив без markdown:
-[{"task":"...","who":"...","priority":"срочно|важно|обычно","deadline":"...или null","source":"..."}]`,
-        messages: [{ role: 'user', content: text }]
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.3,
+        messages: [
+          { role: 'system', content: `Ты помощник по управлению задачами. Команда: ${TEAM.join(', ')}. Извлеки задачи из текста. Верни ТОЛЬКО JSON массив без markdown: [{"task":"...","who":"...","priority":"срочно|важно|обычно","deadline":"...или null","source":"..."}]` },
+          { role: 'user', content: text }
+        ]
       })
     });
     const data = await resp.json();
-    const raw = data.content.map(b => b.text || '').join('').replace(/```json|```/g,'').trim();
+    const raw = data.choices[0].message.content.replace(/```json|```/g,'').trim();
     const parsed = JSON.parse(raw);
 
     parsed.forEach(item => {
