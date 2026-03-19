@@ -340,11 +340,7 @@ async def cmd_comment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     board_id = get_board_id(chat_id)
     args = ctx.args
     if not args or len(args) < 2:
-        await update.message.reply_text(
-            "Использование: /comment [номер задачи] [текст]
-
-Например: /comment 3 позвонила клиенту, ждём ответа"
-        )
+        await update.message.reply_text("Использование: /comment [номер задачи] [текст]. Например: /comment 3 позвонила клиенту")
         return
     try:
         task_id = int(args[0])
@@ -365,15 +361,8 @@ async def cmd_comment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "created": datetime.now().strftime("%d.%m %H:%M"),
     }
     t["comments"].append(comment)
-    await update.message.reply_text(
-        f"💬 Комментарий добавлен к задаче #{task_id}:
-
-"
-        f"◻️ {t['task']} · {t['who']}
-
-"
-        f"«{comment_text}» — {author}"
-    )
+    msg = "Комментарий к задаче #" + str(task_id) + ": " + t["task"] + ". " + comment_text + " — " + author
+    await update.message.reply_text(msg)
 
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
