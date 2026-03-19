@@ -83,7 +83,7 @@ def analyze_api(chat_id):
     board_id = get_board_id(chat_id)
     text = request.json.get("text", "")
     try:
-        parsed = analyze_messages(text)
+        parsed, _ = analyze_all(text)
         added = []
         for item in parsed:
             t = make_task(board_id, item)
@@ -150,31 +150,8 @@ def make_task(chat_id, item):
         "comments": [],
     }
 
-def analyze_messages(text):
-    system = f"""Ты помощник по управлению задачами. Команда: {", ".join(TEAM)}.
-
-Правила распределения задач:
-- Аня: суды, претензии, договоры аренды, проверка договоров, юридические вопросы
-- Полина: всё остальное
-- Я (сам): только если в тексте явно написано "я", "мне", "сам сделаю", "напомни мне"
-
-Правила создания задач:
-- Если несколько сообщений об одной теме — объедини в ОДНУ задачу
-- Создавай максимум 1-2 задачи из любого сообщения
-- Выбирай самую суть, не дроби на мелкие подзадачи
-- Определяй исполнителя по теме задачи согласно правилам выше
-
-Верни ТОЛЬКО JSON массив без markdown:
-[{{"task":"...","who":"...","priority":"срочно|важно|обычно","deadline":"...или null","source":"..."}}]"""
-    response = groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": text}],
-        temperature=0.3,
-    )
-    raw = response.choices[0].message.content.strip().replace("```json", "").replace("```", "").strip()
-    return json.loads(raw)
-
-def analyze_events(text):
+def analyze_all(text):
+    """Single call that classifies text and returns tasks and events separately."""
     today = datetime.now()
     import calendar
     last_day = calendar.monthrange(today.year, today.month)[1]
@@ -185,13 +162,21 @@ def analyze_events(text):
     today_str = today.strftime("%d.%m.%Y")
 
     system = (
-        "Из текста извлеки встречи, звонки, созвоны, встречи с людьми. "
-        "Для каждой встречи определи: "
-        "title (название, например 'Звонок с Артёмом'), "
-        "date (дата в формате ДД.ММ.ГГГГ, сегодня=" + today_str + ", завтра=" + tomorrow_str + "), "
-        "time (время в формате ЧЧ:ММ, если не указано — null). "
-        "Верни ТОЛЬКО JSON массив без markdown. Если встреч нет — верни []. "
-        'Пример: [{"title":"Звонок с Артёмом","date":"20.03.2026","time":"12:00"}]'
+        "Ты помощник руководителя. Разбери текст и раздели содержимое на ДВА типа — задачи и встречи. "
+        "ВАЖНО: каждый элемент текста должен попасть ТОЛЬКО в один тип, не дублируй."
+        "\n\nВСТРЕЧА — это звонок, созвон, встреча с конкретным человеком/командой, переговоры, совещание. Признаки: есть время (в 12:00, в 15:30) или слова 'встреча', 'звонок', 'созвон', 'переговоры', 'совещание'."
+        "\nЗАДАЧА — это поручение, дело которое нужно сделать, проблема которую нужно решить. Признаки: глаголы 'сделай', 'подготовь', 'отправь', 'проверь', 'напиши' и т.д."
+        "\n\nПравила для задач:"
+        "\n- Аня: суды, претензии, договоры аренды, проверка договоров, юридические вопросы"
+        "\n- Полина: всё остальное"
+        "\n- Я (сам): только если явно написано 'я', 'мне', 'сам сделаю'"
+        "\n- Максимум 1-2 задачи из всего текста, объединяй похожие"
+        "\n\nПравила для встреч:"
+        "\n- date: дата в формате ДД.ММ.ГГГГ (сегодня=" + today_str + ", завтра=" + tomorrow_str + ")"
+        "\n- time: время в формате ЧЧ:ММ, если не указано — null"
+        "\n\nВерни ТОЛЬКО JSON объект без markdown:"
+        '\n{"tasks": [{"task":"...","who":"...","priority":"срочно|важно|обычно","deadline":"...или null","source":"..."}], "events": [{"title":"...","date":"ДД.ММ.ГГГГ","time":"ЧЧ:ММ или null"}]}'
+        "\nЕсли задач нет — tasks пустой массив. Если встреч нет — events пустой массив."
     )
     try:
         response = groq_client.chat.completions.create(
@@ -199,10 +184,12 @@ def analyze_events(text):
             messages=[{"role": "system", "content": system}, {"role": "user", "content": text}],
             temperature=0.2,
         )
-        raw = response.choices[0].message.content.strip().replace("```json","").replace("```","").strip()
-        return json.loads(raw)
-    except:
-        return []
+        raw = response.choices[0].message.content.strip().replace("```json", "").replace("```", "").strip()
+        result = json.loads(raw)
+        return result.get("tasks", []), result.get("events", [])
+    except Exception as e:
+        logging.error(f"analyze_all error: {e}")
+        return [], []
 
 # ─── Telegram Bot ─────────────────────────────────────────────────────────────
 
@@ -287,8 +274,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     thinking = await update.message.reply_text("🤖 Анализирую...")
     try:
-        parsed_tasks = analyze_messages(text)
-        parsed_events = analyze_events(text)
+        parsed_tasks, parsed_events = analyze_all(text)
     except Exception as e:
         await thinking.edit_text(f"❌ Ошибка: {e}")
         return
