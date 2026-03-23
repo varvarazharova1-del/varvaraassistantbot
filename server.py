@@ -406,7 +406,7 @@ async def run_bot():
     tg_app.add_handler(CommandHandler("clear", cmd_clear))
     tg_app.add_handler(CommandHandler("groupid", cmd_groupid))
     tg_app.add_handler(CommandHandler("comment", cmd_comment))
-    tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    tg_app.add_handler(MessageHandler((filters.TEXT | filters.FORWARDED) & ~filters.COMMAND, handle_message))
     tg_app.add_handler(CallbackQueryHandler(handle_callback))
     await tg_app.initialize()
     await tg_app.start()
